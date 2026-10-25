@@ -1,12 +1,147 @@
-<!doctype html><html lang="no"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Slektstre – anetavlekollaps</title><style>body{margin:0;background:#07142b;color:#edf3ff;font:15px system-ui}main{max-width:1100px;margin:auto;padding:20px}h1{margin:0 0 8px}p{color:#b8c8df}.controls{display:flex;flex-wrap:wrap;align-items:center;gap:14px;background:#10213d;padding:15px;border-radius:12px}input{accent-color:#66b9ff}button,select{background:#203d65;border:1px solid #4b6c91;color:white;padding:9px 13px;border-radius:8px;cursor:pointer}.stats{display:flex;gap:15px;flex-wrap:wrap;margin:14px 0}.stats div{background:#10213d;padding:12px 16px;border-radius:10px;flex:1;min-width:135px}.stats strong{display:block;font-size:22px}.stats small{color:#b8c8df}svg{width:100%;height:530px;background:radial-gradient(ellipse at 50% 10%,#152d53,#07142b 75%);border-radius:12px} .note{font-size:13px}#tip{min-height:22px;color:#f6d785}</style></head><body><main><h1>Slektstreet mitt</h1><p>En interaktiv modell av hvordan forfedre dobles og hvordan slektslinjer kan overlappe.</p><div class="controls"><label>Generasjoner: <b id="genLabel">7</b> <input id="gen" type="range" min="1" max="12" value="7"></label><label>Felles forfedre: <select id="mode"><option value="none">Ingen overlapping</option><option value="mild" selected>Litt overlapping</option><option value="strong">Mye overlapping</option></select></label><button id="play">▶ Animer</button><button id="reset">Tilbakestill</button></div><div class="stats"><div><small>Teoretiske plasser (siste generasjon)</small><strong id="theory"></strong></div><div><small>Unike forfedre (siste generasjon)</small><strong id="unique"></strong></div><div><small>Overlappende plasser</small><strong id="duplicates"></strong></div></div><svg id="tree" viewBox="0 0 1100 530" role="img" aria-label="Interaktivt slektstre"></svg><p id="tip"></p><p class="note">Dette er en pedagogisk simulering, ikke faktiske slektsdata. Samme punkt representerer samme simulerte person. For tydelighet vises opptil 12 generasjoner.</p></main><script>
-const svg=document.getElementById('tree'),gen=document.getElementById('gen'),mode=document.getElementById('mode');let timer=null;
-const NS='http://www.w3.org/2000/svg';function el(tag,attrs){let e=document.createElementNS(NS,tag);Object.entries(attrs).forEach(([k,v])=>e.setAttribute(k,v));return e}function fmt(n){return n.toLocaleString('nb-NO')}
-function render(){let n=+gen.value;document.getElementById('genLabel').textContent=n;svg.replaceChildren();let defs=el('defs',{});for(let [name,color] of [['r','#ff8e7e'],['b','#76baff']]){let f=el('filter',{id:'glow'+name,x:'-50%',y:'-50%',width:'200%',height:'200%'});f.append(el('feGaussianBlur',{stdDeviation:'2.3'}));defs.append(f)}svg.append(defs);
-let layers=[[{id:'self',x:550,y:35,side:'self'}]], all=[];for(let d=1;d<=n;d++){let count=2**d, layer=[];for(let i=0;i<count;i++){let side=i<count/2?'r':'b';let x=35+1030*(i+.5)/count;let id='g'+d+'-'+i;let strength=mode.value;let group=strength==='strong'?8:strength==='mild'?16:Infinity;
-// Deterministic pedigree collapse: a subset of slots share a simulated ancestor.
-if(d>=5&&strength!=='none'&&i%group===group-1){id='g'+d+'-'+(i-1)}
-layer.push({id,x,y:35+d*455/n,side,i})}layers.push(layer)}
-for(let d=1;d<=n;d++){let prev=layers[d-1],cur=layers[d];for(let i=0;i<cur.length;i++){let a=prev[Math.floor(i/2)],b=cur[i],duplicate=cur.find(v=>v.id===b.id);let tx=duplicate.x;let path=`M ${a.x} ${a.y} C ${a.x} ${(a.y+b.y)/2}, ${tx} ${(a.y+b.y)/2}, ${tx} ${b.y}`;let color=b.side==='r'?'#ff8e7e':'#76baff';let line=el('path',{d:path,fill:'none',stroke:color,'stroke-width':d>9?.55:d>7?1:1.7,opacity:Math.max(.25,1-d*.045)});svg.append(line);}}
-let seen=new Set();for(let d=0;d<=n;d++){for(let p of layers[d]){let actual=layers[d].find(q=>q.id===p.id);if(seen.has(p.id))continue;seen.add(p.id);let dot=el('circle',{cx:actual.x,cy:actual.y,r:d===0?6:d>8?1.1:2.5,fill:d===0?'#ffe39d':p.side==='r'?'#ffc0b5':'#b2d9ff'});dot.addEventListener('click',()=>document.getElementById('tip').textContent=`Generasjon ${d}: ${p.id}. ${layers[d].filter(q=>q.id===p.id).length} plass(er) viser samme simulerte person.`);svg.append(dot)}}
-let last=layers[n],uniq=new Set(last.map(p=>p.id)).size;document.getElementById('theory').textContent=fmt(2**n);document.getElementById('unique').textContent=fmt(uniq);document.getElementById('duplicates').textContent=fmt(2**n-uniq);document.getElementById('tip').textContent=mode.value==='none'?'Ingen felles forfedre er simulert.':'Noen linjer i samme generasjon ender hos samme person (pedigree collapse).';}
-gen.oninput=render;mode.onchange=render;document.getElementById('reset').onclick=()=>{clearInterval(timer);gen.value=7;mode.value='mild';render()};document.getElementById('play').onclick=()=>{clearInterval(timer);gen.value=1;render();timer=setInterval(()=>{if(+gen.value>=12){clearInterval(timer);return}gen.value=+gen.value+1;render()},650)};render();</script></body></html>
+
+<!DOCTYPE html>
+<html lang="no">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Slektstre-simulator</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#071426;color:#eaf2ff;font-family:Arial,sans-serif}
+main{max-width:1100px;margin:auto;padding:16px}
+h2{margin:8px 0 16px}
+.controls{display:flex;flex-wrap:wrap;gap:12px;align-items:center;background:#10233e;padding:15px;border-radius:14px}
+select,button{background:#234269;color:white;border:1px solid #54749a;border-radius:8px;padding:11px;font-size:15px}
+button{cursor:pointer}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:14px 0}
+.stat{background:#10233e;border-radius:12px;padding:12px}
+.stat small{display:block;color:#b5c8df;margin-bottom:8px}
+.stat strong{font-size:23px}
+#stage{background:radial-gradient(ellipse at 50% 45%,#17355d,#07172e 75%);border-radius:16px;overflow:hidden}
+svg{width:100%;height:auto;display:block}
+#info{color:#b5c8df;font-size:13px;line-height:1.5}
+@media(max-width:500px){.stats{grid-template-columns:1fr 1fr}.stat:last-child{grid-column:span 2}}
+</style>
+</head>
+<body>
+<main>
+<h2>Slektstre-simulator</h2>
+<div class="controls">
+<label>Generasjoner:
+<select id="target"></select>
+</label>
+<label>Felles forfedre:
+<select id="overlap">
+<option value="none">Ingen</option>
+<option value="low">Lite</option>
+<option value="medium" selected>Middels</option>
+<option value="high">Mye</option>
+</select>
+</label>
+<button id="play">▶ Animer</button>
+<button id="reset">Tilbakestill</button>
+</div>
+<div class="stats">
+<div class="stat"><small>Generasjon</small><strong id="current">1</strong></div>
+<div class="stat"><small>Teoretiske plasser</small><strong id="total">2</strong></div>
+<div class="stat"><small>Unike forfedre</small><strong id="unique">2</strong></div>
+</div>
+<div id="stage"><svg id="tree" viewBox="0 0 1100 600" aria-label="Slektstre"></svg></div>
+<p id="info">Felles forfedre markeres med gule punkter. Dette er en simulering, ikke faktiske slektsdata.</p>
+</main>
+<script>
+const NS="http://www.w3.org/2000/svg";
+const svg=document.getElementById("tree");
+const target=document.getElementById("target");
+const overlap=document.getElementById("overlap");
+const play=document.getElementById("play");
+const reset=document.getElementById("reset");
+const current=document.getElementById("current");
+const total=document.getElementById("total");
+const unique=document.getElementById("unique");
+let generation=1,timer=null;
+for(let i=1;i<=12;i++){
+ const opt=document.createElement("option");
+ opt.value=i;opt.textContent=i;
+ if(i===5)opt.selected=true;
+ target.appendChild(opt);
+}
+function el(tag,attrs){
+ const node=document.createElementNS(NS,tag);
+ for(const [k,v] of Object.entries(attrs))node.setAttribute(k,v);
+ svg.appendChild(node);
+ return node;
+}
+function build(n){
+ const layers=[[{id:"self",side:"self",x:550,y:35}]];
+ const rate={none:0,low:0.12,medium:0.3,high:0.55}[overlap.value];
+ for(let d=1;d<=n;d++){
+  const count=2**d,layer=[];
+  for(let i=0;i<count;i++){
+   let id="g"+d+"p"+i;
+   if(d>=4&&rate>0){
+    const group=Math.max(2,Math.round(1/rate));
+    if(i%group===group-1)id="g"+d+"p"+(i-1);
+   }
+   layer.push({id,side:i<count/2?"father":"mother",x:45+1010*(i+.5)/count,y:35+d*510/n,i});
+  }
+  layers.push(layer);
+ }
+ return layers;
+}
+function draw(){
+ svg.replaceChildren();
+ const n=generation,layers=build(n);
+ const counts=layers[n];
+ const uniqueIds=new Set(counts.map(p=>p.id));
+ current.textContent=n;
+ total.textContent=(2**n).toLocaleString("nb-NO");
+ unique.textContent=uniqueIds.size.toLocaleString("nb-NO");
+ const positions=new Map();
+ for(let d=0;d<=n;d++){
+  const groups=new Map();
+  for(const p of layers[d]){
+   if(!groups.has(p.id))groups.set(p.id,[]);
+   groups.get(p.id).push(p);
+  }
+  for(const [id,items] of groups){
+   const x=items.reduce((s,p)=>s+p.x,0)/items.length;
+   positions.set(id,{x,y:items[0].y,shared:items.length>1});
+  }
+ }
+ for(let d=1;d<=n;d++){
+  const parents=layers[d-1],children=layers[d];
+  for(let i=0;i<children.length;i++){
+   const a=positions.get(parents[Math.floor(i/2)].id);
+   const b=positions.get(children[i].id);
+   const side=children[i].side;
+   const color=side==="father"?"#ff958c":"#76b9ff";
+   const mid=(a.y+b.y)/2;
+   el("path",{d:`M${a.x},${a.y} C${a.x},${mid} ${b.x},${mid} ${b.x},${b.y}`,fill:"none",stroke:color,"stroke-width":Math.max(.5,2.6-d*.14),opacity:.75});
+  }
+ }
+ for(const [id,p] of positions){
+  el("circle",{cx:p.x,cy:p.y,r:id==="self"?7:p.shared?4.5:Math.max(1,3-generation*.1),fill:id==="self"||p.shared?"#ffe18b":"#e9f4ff"});
+ }
+}
+function stop(){if(timer){clearInterval(timer);timer=null}play.textContent="▶ Animer"}
+function animate(){
+ stop();
+ generation=1;draw();
+ const max=Number(target.value);
+ if(max===1)return;
+ play.textContent="■ Stopp";
+ timer=setInterval(()=>{
+  if(generation>=max){stop();return}
+  generation++;draw();
+  if(generation>=max)stop();
+ },850);
+}
+play.onclick=()=>timer?stop():animate();
+reset.onclick=()=>{stop();generation=1;draw()};
+target.onchange=()=>{stop();generation=Math.min(generation,Number(target.value));draw()};
+overlap.onchange=draw;
+draw();
+</script>
+</body>
+</html>
